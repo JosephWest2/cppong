@@ -10,19 +10,6 @@ namespace asio = boost::asio;
 using tcp = asio::ip::tcp;
 using json = nlohmann::json;
 
-enum class PlayerNumber {
-    PLAYER_ONE = 1,
-    PLAYER_TWO = 2,
-};
-enum class InputState {
-    NONE = 0,
-    UP = 1,
-    DOWN = 2,
-};
-struct PlayerInput {
-    PlayerNumber player_number;
-    InputState input_state;
-};
 using InputQueue = pair<queue<PlayerInput>, mutex>;
 class Game {
 public:
@@ -207,6 +194,9 @@ public:
     void Start() {
         DoRead();
     }
+    void Send(string message) {
+        m_socket.async_write_some(asio::buffer(message), [](boost::system::error_code error_code, size_t length) {});
+    }
 private:
     void DoRead() {
         auto self{shared_from_this()};
@@ -215,20 +205,13 @@ private:
                 if (!error_code) {
                     auto& [queue, mutex] = *m_input_queue;
                     scoped_lock lock{mutex};
-                    json data = json::parse(string{m_buffer.data(), length});
-                    if (data.contains("input") && data.contains("player")) {
-                        int input = data["input"];
-                        int player_number = data["player"];
-                        if (input < 3 && input >= 0 && (player_number == 1 || player_number == 2)) {
-                            queue.push(PlayerInput{.player_number = (PlayerNumber)player_number, .input_state = (InputState)input});
-                        }
-                    }
+                    string data_string{m_buffer.data(), length};
+                    auto player_input = PlayerInput::Deserialize(data_string);
+                    queue.push(player_input);
                 }
                 DoRead();
             });
     }
-    Connection(asio::io_context& ioc)
-        : m_socket{ioc} {}
 
     array<char, 1024> m_buffer;
     tcp::socket m_socket;
@@ -244,12 +227,15 @@ public:
         m_acceptor.async_accept([this, input_queue](boost::system::error_code error_code, tcp::socket socket) {
             cout << "Async accept" << endl;
             if (!error_code) {
-                make_shared<Connection>(std::move(socket), input_queue);
+                auto connection = make_shared<Connection>(std::move(socket), input_queue);
+                m_connections.push_back(connection);
+                connection->Start();
             }
             DoAccept(input_queue);
         });
     }
 private:
+    vector<shared_ptr<Connection>> m_connections;
     asio::io_context m_ioc;
     tcp::acceptor m_acceptor;
 };

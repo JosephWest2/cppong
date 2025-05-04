@@ -28,66 +28,36 @@ public:
     UpdateValue update_value;
 
     string Serialize() {
-        char update_type_char = SerializeUpdateType(update_type);
-        json update;
+        json val;
         if (update_type == UpdateType::BallPosition) {
-            update = {
+            val = {
                 {"x", update_value.coordinate.x},
                 {"y", update_value.coordinate.y},
             };
         } else {
-            update = update_value.val;
+            val = update_value.val;
         }
         json j = {
-            {"t", update_type_char},
-            {"v", update},
+            {"t", (int)update_type},
+            {"v", val},
         };
         return j.dump();
     }
 
     static GameUpdate Deserialize(string update_string) {
         json j = json::parse(update_string);
-        int update_type_int = j["t"];
-        char update_type_char = (char)update_type_int;
-        UpdateType update_type = DeserializeUpdateType(update_type_char);
+        int update_type = j["t"];
         UpdateValue update_value;
-        if (update_type == UpdateType::BallPosition) {
+        if ((UpdateType)update_type == UpdateType::BallPosition) {
             update_value.coordinate.x = j["v"]["x"];
             update_value.coordinate.y = j["v"]["y"];
         } else {
             update_value.val = j["v"];
         }
         return GameUpdate{
-            .update_type = update_type,
+            .update_type = (UpdateType)update_type,
             .update_value = update_value
         };
-    }
-private:
-    static char SerializeUpdateType(UpdateType update_type) {
-        switch (update_type) {
-            case UpdateType::GameStatus:
-                return 's';
-            case UpdateType::BallPosition:
-                return 'b';
-            case UpdateType::PlayerOnePaddlePosition:
-                return '1';
-            case UpdateType::PlayerTwoPaddlePosition:
-                return '2';
-        }
-        assert(false && "switch statement should be comprehensive");
-    }
-    static UpdateType DeserializeUpdateType(char update_type_char) {
-        switch (update_type_char) {
-            case 's':
-                return UpdateType::GameStatus;
-            case 'b':
-                return UpdateType::BallPosition;
-            case '1':
-                return UpdateType::PlayerOnePaddlePosition;
-            case '2':
-                return UpdateType::PlayerTwoPaddlePosition;
-        }
-        assert(false && "switch statement should be comprehensive");
     }
 };
 
@@ -136,3 +106,35 @@ private:
     uint m_player_one_paddle_pos;
     uint m_player_two_paddle_pos;
 };
+
+enum class PlayerNumber {
+    PLAYER_ONE = 1,
+    PLAYER_TWO = 2,
+};
+enum class InputState {
+    NONE = 0,
+    UP = 1,
+    DOWN = 2,
+};
+struct PlayerInput {
+    PlayerNumber player_number;
+    InputState input_state;
+
+    string Serialize() {
+        json j = {
+            {"i", (int)input_state},
+            {"p", (int)player_number},
+        };
+        return j.dump();
+    }
+    static PlayerInput Deserialize(string player_input_string) {
+        json j = json::parse(player_input_string);
+        int player_number = j["p"];
+        int input_state = j["i"];
+        return PlayerInput{
+            .player_number = (PlayerNumber)player_number,
+            .input_state = (InputState)input_state,
+        };
+    }
+};
+
