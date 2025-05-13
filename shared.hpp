@@ -4,6 +4,15 @@
 using namespace std;
 using json = nlohmann::json;
 
+enum class PlayerNumber {
+    PLAYER_ONE = 1,
+    PLAYER_TWO = 2,
+};
+enum class InputState {
+    NONE = 0,
+    UP = 1,
+    DOWN = 2,
+};
 enum class UpdateType {
     GameStatus,
     BallPosition,
@@ -79,60 +88,98 @@ struct Direction {
     VerticalDirection vertical;
     HorizontalDirection horizontal;
 };
-class GameState {
+struct GameState {
+
+    uint paddle_height;
+    uint board_height;
+    uint board_width;
+
+    // changes
+    GameStatus game_status;
+    Coordinate ball_pos;
+    uint player_one_paddle_pos;
+    uint player_two_paddle_pos;
 
     void Update(GameUpdate game_update) {
         switch (game_update.update_type) {
             case UpdateType::GameStatus:
+                game_status = (GameStatus)game_update.update_value.val;
                 break;
             case UpdateType::BallPosition:
+                ball_pos = game_update.update_value.coordinate;
                 break;
             case UpdateType::PlayerOnePaddlePosition:
+                player_one_paddle_pos = game_update.update_value.val;
                 break;
             case UpdateType::PlayerTwoPaddlePosition:
+                player_two_paddle_pos = game_update.update_value.val;
                 break;
         }
 
     }
 
-private:
-    uint m_paddle_height;
-    uint m_board_height;
-    uint m_board_width;
+    static GameState FromBoardAndPaddleDimensions(uint board_height, uint board_width, uint paddle_height) {
+        return GameState{
+            .paddle_height = paddle_height,
+            .board_height = board_height,
+            .board_width = board_width,
+            .game_status = GameStatus::NOT_STARTED,
+            .ball_pos{.x = (int)board_width / 2, .y = (int)board_height / 2},
+            .player_one_paddle_pos = 0,
+            .player_two_paddle_pos = 0
+        };
+    }
 
-    // changes
-    GameStatus m_game_status;
-    Coordinate m_ball_pos;
-    uint m_player_one_paddle_pos;
-    uint m_player_two_paddle_pos;
+    friend ostream& operator<<(ostream& os, const GameState& game_state) {
+        if (game_state.game_status == GameStatus::PLAYER_ONE_WON) {
+            os << "Player One Won" << endl;
+            return os;
+        }
+        if (game_state.game_status == GameStatus::PLAYER_TWO_WON) {
+            os << "Player Two Won" << endl;
+            return os;
+        }
+        int height = game_state.board_height;
+        int width = game_state.board_width;
+        for (int y : views::iota(0, height)) {
+            for (int x : views::iota(0, width)) {
+                Coordinate coordinate = {.x = x, .y = y};
+                if (x == 0 && game_state.PaddleOverlapsCoord(PlayerNumber::PLAYER_ONE, coordinate)) {
+                    os << ']';
+                } else if (x == width - 1 && game_state.PaddleOverlapsCoord(PlayerNumber::PLAYER_TWO, coordinate)) {
+                    os << '[';
+                } else if (coordinate == game_state.ball_pos) {
+                    os << '0';
+                } else {
+                    os << '.';
+                }
+            }
+            os << endl;
+        }
+        os << endl;
+        return os;
+    }
+    bool PaddleOverlapsCoord(const PlayerNumber player_number, const Coordinate coord) const {
+        uint paddle_lower_bound = player_number == PlayerNumber::PLAYER_ONE ? player_one_paddle_pos : player_two_paddle_pos;
+        uint paddle_upper_bound = paddle_lower_bound + paddle_height;
+        return coord.y >= paddle_lower_bound && coord.y < paddle_upper_bound;
+    }
+
 };
 
-enum class PlayerNumber {
-    PLAYER_ONE = 1,
-    PLAYER_TWO = 2,
-};
-enum class InputState {
-    NONE = 0,
-    UP = 1,
-    DOWN = 2,
-};
 struct PlayerInput {
-    PlayerNumber player_number;
     InputState input_state;
 
     string Serialize() {
         json j = {
             {"i", (int)input_state},
-            {"p", (int)player_number},
         };
         return j.dump();
     }
     static PlayerInput Deserialize(string player_input_string) {
         json j = json::parse(player_input_string);
-        int player_number = j["p"];
         int input_state = j["i"];
         return PlayerInput{
-            .player_number = (PlayerNumber)player_number,
             .input_state = (InputState)input_state,
         };
     }

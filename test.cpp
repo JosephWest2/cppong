@@ -21,6 +21,10 @@ int main() {
     assert(update.update_type == out_update.update_type);
     assert(update.update_value.val == out_update.update_value.val);
 
+    GameState game_state = GameState::FromBoardAndPaddleDimensions(12, 12, 4);
+
+    cout << game_state;
+
     cout << "tests passed" << endl;
     return EXIT_SUCCESS;
 }
